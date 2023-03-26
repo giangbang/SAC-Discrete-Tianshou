@@ -8,7 +8,10 @@ from torch.distributions.categorical import Categorical
 
 def parse_args():
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(("Discrete SAC using Tianshou, "
+        "for the meaning of some hyper-parameters, "
+        "refer to the documentation of Tianshou."
+    ))
 
     parser.add_argument('--env', default='LunarLander-v2')
     parser.add_argument('--buffer-size', default=1_000_000, type=int)
@@ -16,12 +19,14 @@ def parse_args():
     parser.add_argument('--total-timesteps', default=1000000, type=int)
     parser.add_argument('--batch-size', default=256, type=int)
     parser.add_argument('--hidden-dim', default=256, type=int)
-    parser.add_argument('--gradient-steps', default=1, type=int)
     parser.add_argument('--train-freq', default=1, type=int)
     parser.add_argument('--eval-freq', default=10_000, type=int)
     parser.add_argument('--learning-rate', default=3e-4, type=float)
     parser.add_argument('--tau', default=0.005, type=float)
     parser.add_argument('--gamma', default=0.99, type=float)
+    parser.add_argument('--step_per_epoch', default=10_000, type=int)
+    parser.add_argument('--step_per_collect', default=0.99, type=int)
+    parser.add_argument('--update_per_step', default=0.99, type=float)
     parser.add_argument('--target-entropy-ratio', default=0.98, type=float)
 
     args, unknown = parser.parse_known_args()
@@ -89,7 +94,7 @@ if __name__ == "__main__":
         alpha=alpha
     )
 
-    train_collector = ts.data.Collector(policy, train_envs, ts.data.VectorReplayBuffer(20000, 10), exploration_noise=True)
+    train_collector = ts.data.Collector(policy, train_envs, ts.data.VectorReplayBuffer(kwargs["buffer_size"], 10), exploration_noise=True)
     test_collector = ts.data.Collector(policy, test_envs, exploration_noise=True)
 
     # logger
@@ -101,7 +106,11 @@ if __name__ == "__main__":
     # training
     result = ts.trainer.offpolicy_trainer(
         policy, train_collector, test_collector,
-        max_epoch=kwargs["total_timesteps"]//10000, step_per_epoch=10000, step_per_collect=1, # this effectively test the policy every 10k steps
-        update_per_step=1, episode_per_test=100, batch_size=kwargs["batch_size"], logger=logger,
-        stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold)
+        max_epoch=kwargs["total_timesteps"]//kwargs["step_per_epoch"],
+        step_per_epoch=kwargs["step_per_epoch"],
+        step_per_collect=kwargs["step_per_collect"],
+        update_per_step=kwargs["update_per_step"],
+        episode_per_test=100, batch_size=kwargs["batch_size"], logger=logger,
+        stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold
+    )
     print(f'Finished training! Use {result["duration"]}')
