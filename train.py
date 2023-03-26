@@ -1,4 +1,3 @@
-import torch
 import gymnasium as gym
 import tianshou as ts
 import torch, numpy as np
@@ -30,26 +29,30 @@ def parse_args():
 
 # Network architecture, modified from cleanrl
 class SoftQNetwork(nn.Module):
-    def __init__(self, env):
+    def __init__(self, state_shape, actio_shape):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 256)
+        self.fc1 = nn.Linear(np.array(state_shape).prod(), 256)
         self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, env.action_space.n)
+        self.fc3 = nn.Linear(256, action_shape)
 
     def forward(self, obs, state=None, info={}):
+        if isinstance(obs, np.ndarray):
+            obs = torch.from_numpy(obs)
         x = F.relu(self.fc1(obs))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
 class Actor(nn.Module):
-    def __init__(self, envs):
+    def __init__(self, state_shape, actio_shape):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(envs.observation_space.shape).prod(), 256)
+        self.fc1 = nn.Linear(np.array(state_shape).prod(), 256)
         self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, envs.action_space.n)
+        self.fc3 = nn.Linear(256, action_shape)
 
     def forward(self, obs, state=None, info={}):
+        if isinstance(obs, np.ndarray):
+            obs = torch.from_numpy(obs)
         x = F.relu(self.fc1(obs))
         x = F.relu(self.fc2(x))
         logit = self.fc3(x)
@@ -61,25 +64,30 @@ if __name__ == "__main__":
     train_envs = ts.env.DummyVectorEnv([lambda: gym.make(kwargs["env"]) for _ in range(1)])
     test_envs = ts.env.DummyVectorEnv([lambda: gym.make(kwargs["env"]) for _ in range(1)])
 
-    state_shape = train_envs.observation_space.shape or train_envs.observation_space.n
-    action_shape = train_envs.action_space.shape or train_envs.action_space.n
+    state_shape = train_envs.observation_space[0].shape
+    action_shape = train_envs.action_space[0].n
 
-    critic1, critic2 = SoftQNetwork(train_envs), SoftQNetwork(train_envs)
-    policy = Actor(train_envs)
+    critic1, critic2 = SoftQNetwork(state_shape, action_shape), SoftQNetwork(state_shape, action_shape)
+    policy = Actor(state_shape, action_shape)
     critic1_optim = torch.optim.Adam(critic1.parameters(), lr=kwargs["learning_rate"])
     critic2_optim = torch.optim.Adam(critic2.parameters(), lr=kwargs["learning_rate"])
     policy_optim = torch.optim.Adam(policy.parameters(), lr=kwargs["learning_rate"])
 
-    target_entropy = kwargs["target_entropy_ratio"] * torch.log(torch.tensor(train_envs.action_space.n))
+    target_entropy = kwargs["target_entropy_ratio"] * torch.log(torch.tensor(action_shape))
     log_alpha = torch.zeros(1, requires_grad=True)
     alpha_optim = torch.optim.Adam([log_alpha], lr=kwargs["learning_rate"])
 
     alpha = (target_entropy, log_alpha, alpha_optim) # auto tune temperature
 
-    policy = ts.policy.DiscreteSACPolicy(policy, policy_optim,
-        critic1, critic1_optim,
-        critic2, critic2_optim,
-        alpha)
+    policy = ts.policy.DiscreteSACPolicy(
+        actor=policy,
+        actor_optim=policy_optim,
+        critic1=critic1,
+        critic1_optim=critic1_optim,
+        critic2=critic2,
+        critic2_optim=critic2_optim,
+        alpha=alpha
+    )
 
     train_collector = ts.data.Collector(policy, train_envs, ts.data.VectorReplayBuffer(20000, 10), exploration_noise=True)
     test_collector = ts.data.Collector(policy, test_envs, exploration_noise=True)
@@ -93,7 +101,7 @@ if __name__ == "__main__":
     # training
     result = ts.trainer.offpolicy_trainer(
         policy, train_collector, test_collector,
-        max_epoch=10, step_per_epoch=10000, step_per_collect=10,
+        max_epoch=50, step_per_epoch=10000, step_per_collect=10,
         update_per_step=0.1, episode_per_test=100, batch_size=64, logger=logger,
-        stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec.reward_threshold)
+        stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold)
     print(f'Finished training! Use {result["duration"]}')
