@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument('--buffer-size', default=1_000_000, type=int)
     parser.add_argument('--learning-starts', default=1000, type=int)
     parser.add_argument('--total-timesteps', default=1000000, type=int)
-    parser.add_argument('--batch-size', default=256, type=int)
+    parser.add_argument('--batch-size', default=64, type=int)
     parser.add_argument('--hidden-dim', default=256, type=int)
     parser.add_argument('--learning-rate', default=3e-4, type=float)
     parser.add_argument('--tau', default=0.005, type=float)
