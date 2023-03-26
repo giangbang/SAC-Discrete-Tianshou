@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # training
     result = ts.trainer.offpolicy_trainer(
         policy, train_collector, test_collector,
-        max_epoch=50, step_per_epoch=10000, step_per_collect=10,
-        update_per_step=0.1, episode_per_test=100, batch_size=64, logger=logger,
+        max_epoch=kwargs["total_timesteps"]//10000, step_per_epoch=10000, step_per_collect=1, # this effectively test the policy every 10k steps
+        update_per_step=1, episode_per_test=100, batch_size=kwargs["batch_size"], logger=logger,
         stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold)
     print(f'Finished training! Use {result["duration"]}')
