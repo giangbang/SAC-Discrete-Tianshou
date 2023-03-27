@@ -92,8 +92,8 @@ if __name__ == "__main__":
         alpha=alpha
     )
 
-    train_collector = ts.data.Collector(policy, train_envs, ts.data.VectorReplayBuffer(kwargs["buffer_size"], 10), exploration_noise=True)
-    test_collector = ts.data.Collector(policy, test_envs, exploration_noise=True)
+    train_collector = ts.data.Collector(policy, train_envs, ts.data.VectorReplayBuffer(kwargs["buffer_size"], 1), exploration_noise=True)
+    test_collector = ts.data.Collector(policy, test_envs, exploration_noise=False)
 
     # logger
     from torch.utils.tensorboard import SummaryWriter
