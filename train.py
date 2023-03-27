@@ -109,6 +109,6 @@ if __name__ == "__main__":
         step_per_collect=kwargs["step_per_collect"],
         update_per_step=kwargs["update_per_step"],
         episode_per_test=100, batch_size=kwargs["batch_size"], logger=logger,
-        stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold
+        # stop_fn=lambda mean_rewards: mean_rewards >= train_envs.spec[0].reward_threshold
     )
     print(f'Finished training! Use {result["duration"]}')
